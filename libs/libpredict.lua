@@ -453,21 +453,24 @@ libpredict.sender:SetScript("OnUpdate", function()
   end
 end)
 
--- tbc
-libpredict.sender:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-libpredict.sender:RegisterEvent("UNIT_SPELLCAST_START")
-libpredict.sender:RegisterEvent("UNIT_SPELLCAST_STOP")
-libpredict.sender:RegisterEvent("UNIT_SPELLCAST_FAILED")
-libpredict.sender:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-libpredict.sender:RegisterEvent("UNIT_SPELLCAST_SENT")
-
--- vanilla
-libpredict.sender:RegisterEvent("CHAT_MSG_SPELL_SELF_BUFF")
-libpredict.sender:RegisterEvent("SPELLCAST_START")
-libpredict.sender:RegisterEvent("SPELLCAST_STOP")
-libpredict.sender:RegisterEvent("SPELLCAST_FAILED")
-libpredict.sender:RegisterEvent("SPELLCAST_INTERRUPTED")
-libpredict.sender:RegisterEvent("SPELLCAST_DELAYED")
+-- Register only the spellcast event family native to this client.
+-- ClassicAPI backports UNIT_SPELLCAST_* to 1.12.1; subscribing to both families
+-- on Vanilla causes libpredict to misinterpret the backported events as TBC.
+if pfUI.client > 11200 then -- tbc
+  libpredict.sender:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+  libpredict.sender:RegisterEvent("UNIT_SPELLCAST_START")
+  libpredict.sender:RegisterEvent("UNIT_SPELLCAST_STOP")
+  libpredict.sender:RegisterEvent("UNIT_SPELLCAST_FAILED")
+  libpredict.sender:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
+  libpredict.sender:RegisterEvent("UNIT_SPELLCAST_SENT")
+else -- vanilla
+  libpredict.sender:RegisterEvent("CHAT_MSG_SPELL_SELF_BUFF")
+  libpredict.sender:RegisterEvent("SPELLCAST_START")
+  libpredict.sender:RegisterEvent("SPELLCAST_STOP")
+  libpredict.sender:RegisterEvent("SPELLCAST_FAILED")
+  libpredict.sender:RegisterEvent("SPELLCAST_INTERRUPTED")
+  libpredict.sender:RegisterEvent("SPELLCAST_DELAYED")
+end
 
 -- force cache updates
 libpredict.sender:RegisterEvent("UNIT_INVENTORY_CHANGED")
@@ -513,6 +516,7 @@ libpredict.sender:SetScript("OnEvent", function()
     if strfind(event, "UNIT_", 1) then -- tbc
       if arg1 ~= "player" then return end
       local spellname, _, _, _, starttime, endtime = UnitCastingInfo("player")
+      if not spellname or not starttime or not endtime then return end
       spell, time = spellname, endtime - starttime
     end
 

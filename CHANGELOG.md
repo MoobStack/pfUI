@@ -4,6 +4,28 @@ This is the living development changelog for the MoobStack maintenance fork of p
 
 The runtime addon identity remains `pfUI` for compatibility with pfUI modules and companion addons. Development changes are accumulated here and finalized into numbered releases only after live validation.
 
+## Unreleased development (5.5.5 base)
+
+### 2026-09-05
+
+#### Fixed
+
+- Prevented an intermittent `libs/libpredict.lua` cast-start error on Vanilla clients running ClassicAPI: `attempt to perform arithmetic on local endtime (a nil value)`.
+  - Upstream pfUI registers both Vanilla `SPELLCAST_*` and TBC `UNIT_SPELLCAST_*` events unconditionally because the unsupported event family normally never fires on a stock client.
+  - ClassicAPI intentionally backports `UNIT_SPELLCAST_*` to 1.12.1, which caused pfUI's Vanilla `libpredict` sender to enter its TBC-only path and subtract cast timestamps returned by pfUI's legacy `UnitCastingInfo` before that tracker had valid timing.
+  - `libpredict` now registers only the event family appropriate to the detected client: Vanilla uses `SPELLCAST_*`; TBC uses `UNIT_SPELLCAST_*`.
+  - Added a defensive timestamp guard to the TBC cast-start path so a transient missing cast result cannot raise an arithmetic error.
+
+#### Documentation
+
+- Clarified that `ClassicAPI.dll` is required for the supported World of Warcraft 1.12.1 compatibility configuration of the MoobStack pfUI fork and linked the official ClassicAPI releases page.
+- Clarified that SuperCleveRoidMacros is not a pfUI dependency and does not replace ClassicAPI.
+
+#### Live validation status
+
+- Static/source validation: completed.
+- Live 1.12.1 validation of the `libpredict` correction: pending.
+
 ## 5.5.5 - 2026-09-04
 
 ### 2026-09-04
