@@ -10,7 +10,9 @@ This is **not** an addon-pack like [ShaguUI](http://shagu.org/ShaguUI/), however
 
 This repository is a compatibility-focused maintenance fork of [Shagu's pfUI](https://github.com/shagu/pfUI) for World of Warcraft 1.12.1 community-client environments. The addon remains `pfUI` internally and on disk so external pfUI modules and companion addons continue to see the interfaces they expect.
 
-Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). The current unreleased development state and live-test requirements are tracked separately in [RELEASE-NOTES.md](RELEASE-NOTES.md). Until a development cycle is explicitly finalized as a release, the existing pfUI version is intentionally retained.
+Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). Published release details are kept separately in [RELEASE-NOTES-v5.5.5.md](RELEASE-NOTES-v5.5.5.md). During each development cycle the current public version is retained until live validation is complete, then the finalized release receives a new version and tag.
+
+For exact same-name nameplate cast isolation on Vanilla community clients, pfUI can use an optional exact provider such as ClassicAPI or SuperWoW. SuperCleveRoidMacros is not required by pfUI. Without an exact provider, pfUI remains functional and falls back to its original name-based cast tracking.
 
 ## Screenshots
 
@@ -20,18 +22,13 @@ Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). The current unr
 <img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/maraudon.jpg" width="48.5%">
 
 ## Installation (Vanilla)
-1. Download **[Latest Version](https://github.com/shagu/pfUI/archive/master.zip)**
-2. Unpack the Zip file
-3. Rename the folder "pfUI-master" to "pfUI"
-4. Copy "pfUI" into Wow-Directory\Interface\AddOns
-5. Restart Wow
+1. Open the **[Latest Release](https://github.com/MoobStack/pfUI/releases/latest)** and download the clean addon ZIP.
+2. Unpack the ZIP directly into `Wow-Directory\Interface\AddOns`.
+3. Confirm the resulting path is `Wow-Directory\Interface\AddOns\pfUI\pfUI.toc`.
+4. Restart WoW.
 
 ## Installation (The Burning Crusade)
-1. Download **[Latest Version](https://github.com/shagu/pfUI/archive/master.zip)**
-2. Unpack the Zip file
-3. Rename the folder "pfUI-master" to "pfUI-tbc"
-4. Copy "pfUI-tbc" into Wow-Directory\Interface\AddOns
-5. Restart Wow
+The MoobStack maintenance fork is developed and live-tested against World of Warcraft 1.12.1. The upstream pfUI TBC files remain in the repository for compatibility/history, but MoobStack release validation currently covers the Vanilla client target.
 
 ## Commands
 
@@ -78,14 +75,14 @@ big fan of creating configuration UI's, especially not via the Wow-API
 You can donate via [GitHub](https://github.com/sponsors/shagu) or [Ko-fi](https://ko-fi.com/shagu)
 
 **How do I report a Bug?**  
-Please provide as much information as possible in the [Bugtracker](https://github.com/shagu/pfUI/issues).
+Please provide as much information as possible in the [Bugtracker](https://github.com/MoobStack/pfUI/issues).
 If there is an error message, provide the full content of it. Just telling that "there is an error" won't help any of us.
 Please consider adding additional information such as: since when did you got the error,
 does it still happen using a clean configuration, what other addons are loaded and which version you're running.
 When playing with a non-english client, the language might be relevant too. If possible, explain how people can reproduce the issue.
 
 **How can I contribute?**
-Report errors and issues in the [Bugtracker](https://github.com/shagu/pfUI/issues).
+Report errors and issues in the [Bugtracker](https://github.com/MoobStack/pfUI/issues).
 Please make sure to have the latest version installed and check for conflicting addons beforehand.
 
 **I have bad performance, what can I do?**  
@@ -93,7 +90,7 @@ There's only one known performance issue: that is while using "Frame Shadows". M
 in the pfUI settings (Settings -> Appearance -> Enable Frame Shadows). If you still have a low performance,
 it's most likely a combination with another addon. Disable all AddOns but pfUI and then enable one-by-one,
 till the performance problem occurs again. Make sure to report the identified AddOn and what you did to reproduce
-via the [Bugtracker](https://github.com/shagu/pfUI/issues).
+via the [Bugtracker](https://github.com/MoobStack/pfUI/issues).
 
 **Where is the happiness indicator for pets?**  
 The pet happiness is shown as the color of your pet's frame. Depending on your skin, this can either be the text or the background color of your pet's healthbar:

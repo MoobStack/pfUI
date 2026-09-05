@@ -2,9 +2,9 @@
 
 This is the living development changelog for the MoobStack maintenance fork of pfUI.
 
-The runtime addon identity remains `pfUI` for compatibility with pfUI modules and companion addons. Development stays on the current version until a release is explicitly finalized; intermediate fixes are recorded here without changing the TOC version or creating a release tag.
+The runtime addon identity remains `pfUI` for compatibility with pfUI modules and companion addons. Development changes are accumulated here and finalized into numbered releases only after live validation.
 
-## 5.5.4 - Development
+## 5.5.5 - 2026-09-04
 
 ### 2026-09-04
 
@@ -33,13 +33,13 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
 
 #### Compatibility
 
-- No TOC version change: still `5.5.4` while this development cycle remains unreleased.
+- Published as pfUI `5.5.5` after successful live validation of the exact-nameplate cast fix.
 - No addon-folder rename.
 - No change to the global `pfUI` namespace.
 - No SavedVariables/schema changes.
 - No public pfUI module/API contract changes.
 - The fix is isolated to `modules/nameplates.lua`; pfExtend, pfQuest, pfQuest-turtle, and pfUI-LocationPlus integration surfaces are unchanged.
-- ClassicAPI support is optional and feature-detected. Stock 1.12.1 clients continue to use pfUI's original legacy cast behavior.
+- ClassicAPI support is optional and feature-detected. Stock 1.12.1 clients continue to use pfUI's original legacy cast behavior. Exact isolation of same-name nameplate casts requires an exact identity provider such as ClassicAPI or SuperWoW.
 
 #### Live validation status
 
@@ -48,5 +48,5 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
 - First live 1.12.1 test of the initial implementation: **failed** (nameplate cast bars were suppressed).
 - Second live build: **failed** (cast bars returned, but same-name cast leakage also returned).
 - Registered-child exact-identity build: **failed** (exact cast bars appeared intermittently; current-plate resolver and sparse-slot recovery defects identified).
-- Current-plate/sparse-slot correction build: **pending live validation**.
+- Current-plate/sparse-slot correction build (`2026-09-04-nameplate-castfix4`): **passed live validation**. Cast bars remained visible and were isolated to the individual same-name unit actually casting.
 
