@@ -10,9 +10,19 @@ This is **not** an addon-pack like [ShaguUI](http://shagu.org/ShaguUI/), however
 
 This repository is a compatibility-focused maintenance fork of [Shagu's pfUI](https://github.com/shagu/pfUI) for World of Warcraft 1.12.1 community-client environments. The addon remains `pfUI` internally and on disk so external pfUI modules and companion addons continue to see the interfaces they expect.
 
-Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). Published release details are kept separately in [RELEASE-NOTES-v5.5.5.md](RELEASE-NOTES-v5.5.5.md). During each development cycle the current public version is retained until live validation is complete, then the finalized release receives a new version and tag.
+Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). Current development release notes are kept separately in [RELEASE-NOTES.md](RELEASE-NOTES.md), while published v5.5.5 notes remain in [RELEASE-NOTES-v5.5.5.md](RELEASE-NOTES-v5.5.5.md). During each development cycle the current public version is retained until live validation is complete, then the finalized release receives a new version and tag.
 
-For exact same-name nameplate cast isolation on Vanilla community clients, pfUI can use an optional exact provider such as ClassicAPI or SuperWoW. SuperCleveRoidMacros is not required by pfUI. Without an exact provider, pfUI remains functional and falls back to its original name-based cast tracking.
+### Required Compatibility Component
+
+**ClassicAPI.dll is required for the supported compatibility behavior of the MoobStack pfUI fork on World of Warcraft 1.12.1 community clients.**
+
+Download and install the latest ClassicAPI release before using this fork:
+
+- [ClassicAPI Releases](https://github.com/brues-code/ClassicAPI/releases)
+
+MoobStack compatibility fixes may rely on ClassicAPI functionality that is not available through the original 1.12.1 addon API. This includes exact unit/nameplate identity used by the same-name nameplate castbar fix. pfUI may still load without ClassicAPI, but that configuration is not considered a supported compatibility setup for this maintenance fork and affected features may fall back to original Vanilla limitations.
+
+**SuperCleveRoidMacros is not required by pfUI and does not replace the ClassicAPI requirement.**
 
 ## Screenshots
 
@@ -22,10 +32,13 @@ For exact same-name nameplate cast isolation on Vanilla community clients, pfUI 
 <img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/maraudon.jpg" width="48.5%">
 
 ## Installation (Vanilla)
-1. Open the **[Latest Release](https://github.com/MoobStack/pfUI/releases/latest)** and download the clean addon ZIP.
-2. Unpack the ZIP directly into `Wow-Directory\Interface\AddOns`.
-3. Confirm the resulting path is `Wow-Directory\Interface\AddOns\pfUI\pfUI.toc`.
-4. Restart WoW.
+1. Install **[ClassicAPI.dll](https://github.com/brues-code/ClassicAPI/releases)**. ClassicAPI is required for the supported compatibility behavior of the MoobStack pfUI fork.
+2. Open the **[Latest Release](https://github.com/MoobStack/pfUI/releases/latest)** and download the clean addon ZIP.
+3. Unpack the ZIP directly into `Wow-Directory\Interface\AddOns`.
+4. Confirm the resulting path is `Wow-Directory\Interface\AddOns\pfUI\pfUI.toc`.
+5. Restart WoW.
+
+> **Important:** Running the MoobStack pfUI fork without `ClassicAPI.dll` is not a supported compatibility configuration. Some fixes may depend on APIs provided by ClassicAPI and can revert to original Vanilla limitations when it is absent.
 
 ## Installation (The Burning Crusade)
 The MoobStack maintenance fork is developed and live-tested against World of Warcraft 1.12.1. The upstream pfUI TBC files remain in the repository for compatibility/history, but MoobStack release validation currently covers the Vanilla client target.
