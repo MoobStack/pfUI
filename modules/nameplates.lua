@@ -232,16 +232,21 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     -- the registered pfUI overlay child and then caches the exact token/GUID.
     for i = 1, 80 do
       local plateunit = "nameplate" .. i
-      if not UnitExists(plateunit) then break end
 
-      api_parent = api.GetNamePlateForUnit(plateunit)
-      if SameClassicAPIFrame(api_parent, parent) then
-        local plateguid = _G.UnitGUID(plateunit)
-        if handle then
-          classicapi_plate_units[handle] = { unit = plateunit, guid = plateguid }
+      -- ClassicAPI nameplate slots are stable for a plate's lifetime and can
+      -- contain holes after a plate disappears. Never stop on the first free
+      -- slot or later live nameplates become unreachable until that hole is
+      -- reused.
+      if UnitExists(plateunit) then
+        api_parent = api.GetNamePlateForUnit(plateunit)
+        if SameClassicAPIFrame(api_parent, parent) then
+          local plateguid = _G.UnitGUID(plateunit)
+          if handle then
+            classicapi_plate_units[handle] = { unit = plateunit, guid = plateguid }
+          end
+          BindClassicAPIPlateUnit(parent, plateunit, plateguid)
+          return plateunit
         end
-        BindClassicAPIPlateUnit(parent, plateunit, plateguid)
-        return plateunit
       end
     end
 
@@ -593,6 +598,16 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     -- make pfUI fail to load because it lacks the ClassicAPI events.
     pcall(nameplates.RegisterEvent, nameplates, "NAME_PLATE_UNIT_ADDED")
     pcall(nameplates.RegisterEvent, nameplates, "NAME_PLATE_UNIT_REMOVED")
+
+    -- ClassicAPI 1.13.x also synthesizes UNIT_SPELLCAST_* for nameplateN
+    -- tokens. Re-bind on cast transitions so an exact token association that
+    -- missed its initial NAME_PLATE_UNIT_ADDED timing gets another authoritative
+    -- chance precisely when the castbar needs it. Older/partial providers remain
+    -- safe because registration is guarded by pcall.
+    pcall(nameplates.RegisterEvent, nameplates, "UNIT_SPELLCAST_START")
+    pcall(nameplates.RegisterEvent, nameplates, "UNIT_SPELLCAST_CHANNEL_START")
+    pcall(nameplates.RegisterEvent, nameplates, "UNIT_SPELLCAST_STOP")
+    pcall(nameplates.RegisterEvent, nameplates, "UNIT_SPELLCAST_CHANNEL_STOP")
   end
 
   nameplates:SetScript("OnEvent", function()
@@ -602,6 +617,17 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
       CacheClassicAPIPlateUnit(arg1)
     elseif classicapi_nameplates and event == "NAME_PLATE_UNIT_REMOVED" then
       ClearClassicAPIPlateUnit(arg1)
+    elseif classicapi_casts and (
+      event == "UNIT_SPELLCAST_START" or
+      event == "UNIT_SPELLCAST_CHANNEL_START" or
+      event == "UNIT_SPELLCAST_STOP" or
+      event == "UNIT_SPELLCAST_CHANNEL_STOP"
+    ) then
+      -- UNIT_SPELLCAST_* also fires for player/target/party tokens. Only the
+      -- explicit nameplateN family is useful for this module's exact binding.
+      if arg1 and string.find(arg1, "^nameplate%d+$") then
+        CacheClassicAPIPlateUnit(arg1)
+      end
     else
       this.eventcache = true
     end
@@ -1332,7 +1358,11 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     -- castbar update
     if C.nameplates["showcastbar"] == "1" and ( C.nameplates["targetcastbar"] == "0" or target ) then
       local channel, cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill
-      local classicapi_unit = GetClassicAPIPlateUnit(plate, target, mouseover)
+      -- Resolve the exact unit for THIS overlay. `plate` is an outer scratch
+      -- variable used by the WorldFrame discovery loop and may refer to a
+      -- completely different nameplate; using it here made exact casts appear
+      -- only intermittently depending on which plate was discovered last.
+      local classicapi_unit = GetClassicAPIPlateUnit(nameplate, target, mouseover)
 
       -- ClassicAPI provides exact per-nameplate cast state. Prefer it whenever
       -- this plate can be resolved to a unit/GUID so identically named enemies

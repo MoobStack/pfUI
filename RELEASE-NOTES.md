@@ -2,10 +2,10 @@
 
 **Status:** Unreleased development build  
 **Version:** 5.5.4 (intentionally unchanged)  
-**Development build:** `2026-09-04-nameplate-castfix3`
+**Development build:** `2026-09-04-nameplate-castfix4`
 **Base upstream commit:** `b2f6df84`  
 **Target:** World of Warcraft 1.12.1 / Interface 11200  
-**Live-client validation:** Two development builds tested; registered-child identity correction pending
+**Live-client validation:** Three development builds tested; current-plate/sparse-slot correction pending
 
 ## Development policy
 
@@ -54,6 +54,13 @@ The first development build compared the `Frame` object returned by `C_NamePlate
 The second development build added native-handle comparison and restored pfUI's name-keyed fallback when exact binding missed. Live testing restored cast bars, but the fallback also restored the original bug: every visible same-name mob displayed the shared cast.
 
 The current correction no longer depends on parent-wrapper identity alone. pfUI's overlay is a Lua-registered child of the native plate; the fresh ClassicAPI wrapper exposes that same registered child through `GetChildren()`, giving an exact cross-wrapper correlation. An unresolved decorated plate can therefore enumerate the live `nameplateN` tokens, identify its own exact token through the registered child, and use `C_Spell` for that unit. Duplicate visible names are not permitted to use the shared name-keyed fallback while ClassicAPI exact casting is present.
+
+The third live build showed that cast bars were now sometimes correct but absent most of the time. Review found two deterministic implementation defects rather than another ClassicAPI ambiguity:
+
+- the per-nameplate castbar update called `GetClassicAPIPlateUnit(plate, ...)`, where `plate` was the outer scratch variable used by the WorldFrame discovery loop, instead of passing the current `nameplate` overlay;
+- the fallback `nameplate1`..`nameplate80` scan stopped at the first `UnitExists(...) == false`. ClassicAPI 1.13.4 nameplate slots can contain holes, so this could make all later live slots unreachable.
+
+The current build passes the current overlay explicitly, scans the full bounded token range while skipping free slots, and re-attempts exact binding on ClassicAPI `UNIT_SPELLCAST_*` start/stop transitions for `nameplateN` tokens. The visible castbar itself remains pfUI's existing widget/rendering path.
 
 ### Why this approach
 

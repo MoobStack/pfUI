@@ -25,6 +25,10 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
   - Unresolved plates perform a bounded on-demand scan of ClassicAPI's contiguous `nameplateN` unit tokens and bind the matching exact unit/GUID.
   - When ClassicAPI exact casting is available, a duplicated visible name is never allowed to fall back to pfUI's name-keyed `libcast` state; this prevents one mob's cast from being copied to its same-name neighbors.
   - Unique-name plates retain the legacy fallback if exact binding is temporarily unavailable.
+- Corrected the third live-test failure where exact casts appeared only intermittently.
+  - Fixed the castbar update call site to resolve the current `nameplate` overlay rather than the outer WorldFrame-discovery scratch variable `plate`. The stale scratch variable could point at a completely different nameplate, making exact-unit resolution depend on discovery order.
+  - Corrected the bounded `nameplateN` recovery scan to tolerate free slots. ClassicAPI 1.13.4 keeps nameplate slots stable for each plate lifetime, so a removed middle plate can leave a hole while higher-numbered slots remain valid.
+  - Added guarded `UNIT_SPELLCAST_START`, `UNIT_SPELLCAST_CHANNEL_START`, `UNIT_SPELLCAST_STOP`, and `UNIT_SPELLCAST_CHANNEL_STOP` listeners. Nameplate spellcast transitions now provide an additional authoritative opportunity to re-bind the exact `nameplateN` token at the moment cast state changes.
 - Corrected the SuperWoW cast lookup in the touched nameplate code path to reference the current `plate` object explicitly.
 
 #### Compatibility
@@ -43,5 +47,6 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
 - Mocked identity-selection validation: completed.
 - First live 1.12.1 test of the initial implementation: **failed** (nameplate cast bars were suppressed).
 - Second live build: **failed** (cast bars returned, but same-name cast leakage also returned).
-- Registered-child exact-identity build: **pending live validation**.
+- Registered-child exact-identity build: **failed** (exact cast bars appeared intermittently; current-plate resolver and sparse-slot recovery defects identified).
+- Current-plate/sparse-slot correction build: **pending live validation**.
 
