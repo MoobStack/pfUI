@@ -6,6 +6,12 @@ This is **not** an addon-pack like [ShaguUI](http://shagu.org/ShaguUI/), however
 
 **Please do not re-upload or distribute outdated versions of this project. However, you are more than welcome to fork or link to the official github page.**
 
+## MoobStack Maintenance Fork
+
+This repository is a compatibility-focused maintenance fork of [Shagu's pfUI](https://github.com/shagu/pfUI) for World of Warcraft 1.12.1 community-client environments. The addon remains `pfUI` internally and on disk so external pfUI modules and companion addons continue to see the interfaces they expect.
+
+Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). The current unreleased development state and live-test requirements are tracked separately in [RELEASE-NOTES.md](RELEASE-NOTES.md). Until a development cycle is explicitly finalized as a release, the existing pfUI version is intentionally retained.
+
 ## Screenshots
 
 <img src="https://raw.githubusercontent.com/shagu/ShaguAddons/master/_img/pfUI/config.jpg" align="right" width="48.5%">

@@ -37,6 +37,159 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
   local registry = {}
   local debuffdurations = C.appearance.cd.debuffs == "1" and true or nil
 
+  -- ClassicAPI exposes stable nameplate unit tokens/GUIDs and server-backed
+  -- per-unit cast information without replacing pfUI's legacy UnitCastingInfo
+  -- fallback. Keep this provider optional so stock 1.12.1 clients and other
+  -- compatibility layers continue to use their existing paths.
+  local classicapi_nameplates = _G.C_NamePlate
+    and _G.C_NamePlate.GetNamePlateForUnit
+    and _G.UnitGUID
+    and true or nil
+  local classicapi_casts = classicapi_nameplates
+    and _G.C_Spell
+    and _G.C_Spell.UnitCastingInfo
+    and _G.C_Spell.UnitChannelInfo
+    and true or nil
+
+  local function CacheClassicAPIPlateUnit(unit)
+    if not classicapi_nameplates or not unit then return end
+
+    local parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
+    if not parent then return end
+
+    local guid = _G.UnitGUID(unit)
+    parent.pfUI_classicapi_unit = unit
+    parent.pfUI_classicapi_guid = guid
+
+    if parent.nameplate then
+      parent.nameplate.classicapi_unit = unit
+      parent.nameplate.classicapi_guid = guid
+      parent.nameplate.eventcache = true
+    end
+
+    return parent
+  end
+
+  local function ClearClassicAPIPlateUnit(unit)
+    if not classicapi_nameplates or not unit then return end
+
+    -- ClassicAPI keeps the unit-to-frame association valid while dispatching
+    -- NAME_PLATE_UNIT_REMOVED, which lets us clear the exact cached identity.
+    local parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
+    if not parent then return end
+
+    if parent.pfUI_classicapi_unit == unit then
+      parent.pfUI_classicapi_unit = nil
+      parent.pfUI_classicapi_guid = nil
+    end
+
+    if parent.nameplate and parent.nameplate.classicapi_unit == unit then
+      parent.nameplate.classicapi_unit = nil
+      parent.nameplate.classicapi_guid = nil
+      parent.nameplate.castbar:Hide()
+      parent.nameplate.eventcache = true
+    end
+  end
+
+  local function GetClassicAPIPlateUnit(nameplate, target, mouseover)
+    if not classicapi_casts or not nameplate or not nameplate.parent then return end
+
+    local parent = nameplate.parent
+    local api = _G.C_NamePlate
+
+    -- Prefer direct unit tokens where pfUI has already identified the plate.
+    if target and api.GetNamePlateForUnit("target") == parent then
+      return "target"
+    end
+
+    if mouseover and api.GetNamePlateForUnit("mouseover") == parent then
+      return "mouseover"
+    end
+
+    -- NAME_PLATE_UNIT_ADDED provides the stable nameplateN token. Validate it
+    -- before every use because ClassicAPI may recycle a removed nameplate slot.
+    local unit = nameplate.classicapi_unit or parent.pfUI_classicapi_unit
+    if unit and UnitExists(unit) and api.GetNamePlateForUnit(unit) == parent then
+      return unit
+    end
+
+    -- A cached GUID can recover an exact current token. This covers the short
+    -- interval where the overlay is created after the add event has fired.
+    local guid = nameplate.classicapi_guid or parent.pfUI_classicapi_guid
+    if guid and api.GetNamePlateForGUID and api.GetNamePlateForGUID(guid) == parent
+      and _G.UnitTokenFromGUID then
+      local guidunit = _G.UnitTokenFromGUID(guid)
+      if guidunit and api.GetNamePlateForUnit(guidunit) == parent then
+        parent.pfUI_classicapi_unit = guidunit
+        nameplate.classicapi_unit = guidunit
+        return guidunit
+      end
+    end
+
+    -- Last-resort exact lookup for reload/late-hook cases. This is bounded by
+    -- the number of live nameplates and only runs until the identity is cached.
+    if api.GetNamePlateGUIDs and api.GetNamePlateForGUID and _G.UnitTokenFromGUID then
+      local guids = api.GetNamePlateGUIDs()
+      if guids then
+        for _, plateguid in pairs(guids) do
+          if api.GetNamePlateForGUID(plateguid) == parent then
+            local plateunit = _G.UnitTokenFromGUID(plateguid)
+            if plateunit and api.GetNamePlateForUnit(plateunit) == parent then
+              parent.pfUI_classicapi_unit = plateunit
+              parent.pfUI_classicapi_guid = plateguid
+              nameplate.classicapi_unit = plateunit
+              nameplate.classicapi_guid = plateguid
+              return plateunit
+            end
+          end
+        end
+      end
+    end
+  end
+
+  local function HasDuplicateVisibleName(name, current)
+    if not name then return nil end
+
+    local count = 0
+    for parent in pairs(registry) do
+      local nameplate = parent.nameplate
+      if parent:IsShown() and nameplate and nameplate.original and nameplate.original.name
+        and nameplate.original.name:GetText() == name then
+        count = count + 1
+        if count > 1 then return true end
+      end
+    end
+
+    -- OnCreate calls OnDataChanged before the new parent is inserted into the
+    -- registry. Count that current plate as well so the initial frame update is
+    -- protected from duplicate-name cast leakage.
+    if current and current.parent and not registry[current.parent]
+      and current:IsVisible() and current.original and current.original.name
+      and current.original.name:GetText() == name then
+      count = count + 1
+    end
+
+    return count > 1 or nil
+  end
+
+  local function GetClassicAPICastingInfo(unit)
+    if not classicapi_casts or not unit then return end
+
+    local cast, text, texture, startTime, endTime, isTradeSkill = _G.C_Spell.UnitCastingInfo(unit)
+    if not cast or not startTime or not endTime then return end
+
+    return cast, nil, text or "", texture, startTime, endTime, isTradeSkill
+  end
+
+  local function GetClassicAPIChannelInfo(unit)
+    if not classicapi_casts or not unit then return end
+
+    local channel, text, texture, startTime, endTime, isTradeSkill = _G.C_Spell.UnitChannelInfo(unit)
+    if not channel or not startTime or not endTime then return end
+
+    return channel, nil, text or "", texture, startTime, endTime, isTradeSkill
+  end
+
   -- cache default border color
   local er, eg, eb, ea = GetStringColor(pfUI_config.appearance.border.color)
 
@@ -312,9 +465,21 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
   nameplates:RegisterEvent("PLAYER_COMBO_POINTS")
   nameplates:RegisterEvent("UNIT_AURA")
 
+  if classicapi_nameplates then
+    -- Some 1.12.1 compatibility layers expose partial modern namespaces.
+    -- Register through pcall so a partial C_NamePlate implementation cannot
+    -- make pfUI fail to load because it lacks the ClassicAPI events.
+    pcall(nameplates.RegisterEvent, nameplates, "NAME_PLATE_UNIT_ADDED")
+    pcall(nameplates.RegisterEvent, nameplates, "NAME_PLATE_UNIT_REMOVED")
+  end
+
   nameplates:SetScript("OnEvent", function()
     if event == "PLAYER_ENTERING_WORLD" then
       this:SetGameVariables()
+    elseif classicapi_nameplates and event == "NAME_PLATE_UNIT_ADDED" then
+      CacheClassicAPIPlateUnit(arg1)
+    elseif classicapi_nameplates and event == "NAME_PLATE_UNIT_REMOVED" then
+      ClearClassicAPIPlateUnit(arg1)
     else
       this.eventcache = true
     end
@@ -372,6 +537,8 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     nameplate.cache = {}
     nameplate.UnitDebuff = PlateUnitDebuff
     nameplate.CacheDebuffs = PlateCacheDebuffs
+    nameplate.classicapi_unit = parent.pfUI_classicapi_unit
+    nameplate.classicapi_guid = parent.pfUI_classicapi_guid
     nameplate.original = {}
 
     -- create shortcuts for all known elements and disable them
@@ -1032,15 +1199,33 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     -- castbar update
     if C.nameplates["showcastbar"] == "1" and ( C.nameplates["targetcastbar"] == "0" or target ) then
       local channel, cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill
+      local classicapi_unit = GetClassicAPIPlateUnit(plate, target, mouseover)
 
-      -- detect cast or channel bars
-      cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(target and "target" or name)
-      if not cast then channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(target and "target" or name) end
+      -- ClassicAPI provides exact per-nameplate cast state. Prefer it whenever
+      -- this plate can be resolved to a unit/GUID so identically named enemies
+      -- cannot inherit another unit's cast.
+      if classicapi_unit then
+        cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = GetClassicAPICastingInfo(classicapi_unit)
+        if not cast then
+          channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = GetClassicAPIChannelInfo(classicapi_unit)
+        end
 
-      -- read enemy casts from SuperWoW if enabled
-      if superwow_active then
-        cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(nameplate.parent:GetName(1))
-        if not cast then channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(nameplate.parent:GetName(1)) end
+      -- Preserve pfUI's existing exact SuperWoW GUID provider.
+      elseif superwow_active then
+        cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(plate.parent:GetName(1))
+        if not cast then
+          channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(plate.parent:GetName(1))
+        end
+
+      -- Vanilla libcast is keyed only by unit name. It is safe enough for a
+      -- unique visible name, but using it with duplicate visible names creates
+      -- a false castbar on every matching plate. Hide ambiguous legacy state
+      -- instead of displaying a known-wrong cast.
+      elseif not HasDuplicateVisibleName(name, plate) then
+        cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(target and "target" or name)
+        if not cast then
+          channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(target and "target" or name)
+        end
       end
 
       if not cast and not channel then
