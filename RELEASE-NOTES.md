@@ -4,7 +4,7 @@
 **Version:** 5.5.4 (intentionally unchanged)  
 **Base upstream commit:** `b2f6df84`  
 **Target:** World of Warcraft 1.12.1 / Interface 11200  
-**Live-client validation:** Pending
+**Live-client validation:** Initial build failed; corrected build pending
 
 ## Development policy
 
@@ -40,9 +40,17 @@ When ClassicAPI's optional nameplate and spell APIs are available, pfUI now:
 3. Revalidates cached tokens before use so recycled nameplate slots cannot be mistaken for a previous unit.
 4. Queries `C_Spell.UnitCastingInfo(unit)` and `C_Spell.UnitChannelInfo(unit)` for the exact plate identity.
 5. Keeps the existing SuperWoW GUID path intact when SuperWoW is the available exact provider.
-6. Uses pfUI's legacy name-keyed cast estimator only when an exact provider is unavailable and the visible name is unambiguous.
+6. Compares ClassicAPI nameplate frames by their underlying native frame handle when Lua wrapper identity is not stable.
+7. Caches `NAME_PLATE_UNIT_ADDED` mappings by that native handle so early events can be bound after pfUI creates its overlay.
+8. Falls back to pfUI's original name-keyed cast estimator whenever exact frame identity cannot be resolved.
 
-If exact identity cannot be established and multiple visible units share the same name, the ambiguous cast is hidden rather than duplicated across those units.
+The fallback is intentionally display-safe: a temporary ClassicAPI association miss can re-expose stock pfUI's duplicate-name limitation, but it must never make all cast bars disappear. Once a plate has exact identity, its cast state comes only from that exact unit.
+
+### Live-test correction
+
+The first development build compared the `Frame` object returned by `C_NamePlate.GetNamePlateForUnit()` directly with pfUI's previously discovered parent frame. Live testing showed no cast bars. ClassicAPI documents that default engine nameplates can be surfaced through fresh Lua wrapper objects, so two wrappers can represent the same native frame without being Lua-equal.
+
+The corrected build therefore compares the wrapper's native frame handle (`frame[0]`) when direct equality fails and preserves the original cast fallback if exact binding is temporarily unavailable.
 
 ### Why this approach
 
@@ -75,5 +83,5 @@ Test with nameplate cast bars enabled and, where applicable, ClassicAPI loaded:
 
 ## Known limitation retained by design
 
-On a client without an exact nameplate identity/cast provider, the Vanilla combat log still cannot distinguish two simultaneously visible mobs that have the same name. The development build now prefers no cast bar for that ambiguous legacy case over showing a false cast bar on multiple units.
+On a client without an exact nameplate identity/cast provider, the Vanilla combat log still cannot distinguish two simultaneously visible mobs that have the same name. In that environment this fork preserves stock pfUI's behavior rather than suppressing cast bars. The identical-name isolation fix therefore depends on an exact provider such as ClassicAPI or SuperWoW.
 

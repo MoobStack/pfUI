@@ -51,13 +51,41 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     and _G.C_Spell.UnitChannelInfo
     and true or nil
 
-  local function CacheClassicAPIPlateUnit(unit)
-    if not classicapi_nameplates or not unit then return end
+  -- ClassicAPI may return a fresh Lua wrapper for a default engine nameplate.
+  -- Such wrappers are not Lua-equal even when their [0] native frame handle is
+  -- identical. Compare the native handle as a fallback and keep event mappings
+  -- by that handle so NAME_PLATE_UNIT_ADDED can safely fire before pfUI decorates
+  -- the underlying nameplate.
+  local classicapi_plate_units = {}
 
-    local parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
-    if not parent then return end
+  local function GetClassicAPIFrameHandle(frame)
+    if type(frame) == "table" then
+      return rawget(frame, 0)
+    end
+  end
 
-    local guid = _G.UnitGUID(unit)
+  local function SameClassicAPIFrame(left, right)
+    if not left or not right then return nil end
+    if left == right then return true end
+
+    local left_handle = GetClassicAPIFrameHandle(left)
+    local right_handle = GetClassicAPIFrameHandle(right)
+    return left_handle and right_handle and left_handle == right_handle or nil
+  end
+
+  local function FindClassicAPIParent(api_parent)
+    if not api_parent then return end
+
+    for parent in pairs(registry) do
+      if SameClassicAPIFrame(parent, api_parent) then
+        return parent
+      end
+    end
+  end
+
+  local function BindClassicAPIPlateUnit(parent, unit, guid)
+    if not parent or not unit then return end
+
     parent.pfUI_classicapi_unit = unit
     parent.pfUI_classicapi_guid = guid
 
@@ -66,28 +94,65 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
       parent.nameplate.classicapi_guid = guid
       parent.nameplate.eventcache = true
     end
+  end
+
+  local function CacheClassicAPIPlateUnit(unit)
+    if not classicapi_nameplates or not unit then return end
+
+    local api_parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
+    if not api_parent then return end
+
+    local guid = _G.UnitGUID(unit)
+    local handle = GetClassicAPIFrameHandle(api_parent)
+    if handle then
+      classicapi_plate_units[handle] = { unit = unit, guid = guid }
+    end
+
+    local parent = FindClassicAPIParent(api_parent)
+    if parent then
+      BindClassicAPIPlateUnit(parent, unit, guid)
+    end
 
     return parent
+  end
+
+  local function ClearClassicAPIParent(parent, unit)
+    if not parent then return end
+    if unit and parent.pfUI_classicapi_unit ~= unit then return end
+
+    parent.pfUI_classicapi_unit = nil
+    parent.pfUI_classicapi_guid = nil
+
+    if parent.nameplate then
+      parent.nameplate.classicapi_unit = nil
+      parent.nameplate.classicapi_guid = nil
+      parent.nameplate.castbar:Hide()
+      parent.nameplate.eventcache = true
+    end
   end
 
   local function ClearClassicAPIPlateUnit(unit)
     if not classicapi_nameplates or not unit then return end
 
-    -- ClassicAPI keeps the unit-to-frame association valid while dispatching
-    -- NAME_PLATE_UNIT_REMOVED, which lets us clear the exact cached identity.
-    local parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
-    if not parent then return end
-
-    if parent.pfUI_classicapi_unit == unit then
-      parent.pfUI_classicapi_unit = nil
-      parent.pfUI_classicapi_guid = nil
+    -- The leaving token still resolves during NAME_PLATE_UNIT_REMOVED.
+    local api_parent = _G.C_NamePlate.GetNamePlateForUnit(unit)
+    local handle = GetClassicAPIFrameHandle(api_parent)
+    if handle then
+      classicapi_plate_units[handle] = nil
     end
 
-    if parent.nameplate and parent.nameplate.classicapi_unit == unit then
-      parent.nameplate.classicapi_unit = nil
-      parent.nameplate.classicapi_guid = nil
-      parent.nameplate.castbar:Hide()
-      parent.nameplate.eventcache = true
+    local parent = FindClassicAPIParent(api_parent)
+    if parent then
+      ClearClassicAPIParent(parent, unit)
+      return
+    end
+
+    -- If the API wrapper could not be correlated, clear any cached token match
+    -- so a recycled nameplate slot can never inherit the previous unit.
+    for cached_parent in pairs(registry) do
+      if cached_parent.pfUI_classicapi_unit == unit then
+        ClearClassicAPIParent(cached_parent, unit)
+      end
     end
   end
 
@@ -98,78 +163,75 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     local api = _G.C_NamePlate
 
     -- Prefer direct unit tokens where pfUI has already identified the plate.
-    if target and api.GetNamePlateForUnit("target") == parent then
-      return "target"
-    end
-
-    if mouseover and api.GetNamePlateForUnit("mouseover") == parent then
-      return "mouseover"
-    end
-
-    -- NAME_PLATE_UNIT_ADDED provides the stable nameplateN token. Validate it
-    -- before every use because ClassicAPI may recycle a removed nameplate slot.
-    local unit = nameplate.classicapi_unit or parent.pfUI_classicapi_unit
-    if unit and UnitExists(unit) and api.GetNamePlateForUnit(unit) == parent then
-      return unit
-    end
-
-    -- A cached GUID can recover an exact current token. This covers the short
-    -- interval where the overlay is created after the add event has fired.
-    local guid = nameplate.classicapi_guid or parent.pfUI_classicapi_guid
-    if guid and api.GetNamePlateForGUID and api.GetNamePlateForGUID(guid) == parent
-      and _G.UnitTokenFromGUID then
-      local guidunit = _G.UnitTokenFromGUID(guid)
-      if guidunit and api.GetNamePlateForUnit(guidunit) == parent then
-        parent.pfUI_classicapi_unit = guidunit
-        nameplate.classicapi_unit = guidunit
-        return guidunit
+    local api_parent
+    if target then
+      api_parent = api.GetNamePlateForUnit("target")
+      if SameClassicAPIFrame(api_parent, parent) then
+        return "target"
       end
     end
 
-    -- Last-resort exact lookup for reload/late-hook cases. This is bounded by
-    -- the number of live nameplates and only runs until the identity is cached.
-    if api.GetNamePlateGUIDs and api.GetNamePlateForGUID and _G.UnitTokenFromGUID then
+    if mouseover then
+      api_parent = api.GetNamePlateForUnit("mouseover")
+      if SameClassicAPIFrame(api_parent, parent) then
+        return "mouseover"
+      end
+    end
+
+    -- NAME_PLATE_UNIT_ADDED provides the stable nameplateN token. Validate it
+    -- before every use because a removed nameplate slot may later be recycled.
+    local unit = nameplate.classicapi_unit or parent.pfUI_classicapi_unit
+    if unit and UnitExists(unit) then
+      api_parent = api.GetNamePlateForUnit(unit)
+      if SameClassicAPIFrame(api_parent, parent) then
+        return unit
+      end
+    end
+
+    -- Recover an event mapping that arrived before pfUI created its overlay.
+    local handle = GetClassicAPIFrameHandle(parent)
+    local pending = handle and classicapi_plate_units[handle]
+    if pending and pending.unit and UnitExists(pending.unit) then
+      api_parent = api.GetNamePlateForUnit(pending.unit)
+      if SameClassicAPIFrame(api_parent, parent) then
+        BindClassicAPIPlateUnit(parent, pending.unit, pending.guid)
+        return pending.unit
+      end
+    end
+
+    -- A cached GUID can recover an exact current token after token recycling.
+    local guid = nameplate.classicapi_guid or parent.pfUI_classicapi_guid
+    if guid and _G.UnitTokenFromGUID then
+      local guidunit = _G.UnitTokenFromGUID(guid)
+      if guidunit and _G.UnitGUID(guidunit) == guid then
+        api_parent = api.GetNamePlateForUnit(guidunit)
+        if SameClassicAPIFrame(api_parent, parent) then
+          BindClassicAPIPlateUnit(parent, guidunit, guid)
+          return guidunit
+        end
+      end
+    end
+
+    -- Reload/late-hook recovery. Enumerate the currently nameplated GUIDs, turn
+    -- each into any live unit token, and compare the underlying native frame.
+    if api.GetNamePlateGUIDs and _G.UnitTokenFromGUID then
       local guids = api.GetNamePlateGUIDs()
       if guids then
         for _, plateguid in pairs(guids) do
-          if api.GetNamePlateForGUID(plateguid) == parent then
-            local plateunit = _G.UnitTokenFromGUID(plateguid)
-            if plateunit and api.GetNamePlateForUnit(plateunit) == parent then
-              parent.pfUI_classicapi_unit = plateunit
-              parent.pfUI_classicapi_guid = plateguid
-              nameplate.classicapi_unit = plateunit
-              nameplate.classicapi_guid = plateguid
+          local plateunit = _G.UnitTokenFromGUID(plateguid)
+          if plateunit and _G.UnitGUID(plateunit) == plateguid then
+            api_parent = api.GetNamePlateForUnit(plateunit)
+            if SameClassicAPIFrame(api_parent, parent) then
+              if handle then
+                classicapi_plate_units[handle] = { unit = plateunit, guid = plateguid }
+              end
+              BindClassicAPIPlateUnit(parent, plateunit, plateguid)
               return plateunit
             end
           end
         end
       end
     end
-  end
-
-  local function HasDuplicateVisibleName(name, current)
-    if not name then return nil end
-
-    local count = 0
-    for parent in pairs(registry) do
-      local nameplate = parent.nameplate
-      if parent:IsShown() and nameplate and nameplate.original and nameplate.original.name
-        and nameplate.original.name:GetText() == name then
-        count = count + 1
-        if count > 1 then return true end
-      end
-    end
-
-    -- OnCreate calls OnDataChanged before the new parent is inserted into the
-    -- registry. Count that current plate as well so the initial frame update is
-    -- protected from duplicate-name cast leakage.
-    if current and current.parent and not registry[current.parent]
-      and current:IsVisible() and current.original and current.original.name
-      and current.original.name:GetText() == name then
-      count = count + 1
-    end
-
-    return count > 1 or nil
   end
 
   local function GetClassicAPICastingInfo(unit)
@@ -654,6 +716,17 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     end
 
     parent.nameplate = nameplate
+
+    -- NAME_PLATE_UNIT_ADDED can precede pfUI's WorldFrame discovery by a tick.
+    -- Bind any native-handle mapping that was cached before this overlay existed.
+    if classicapi_nameplates then
+      local handle = GetClassicAPIFrameHandle(parent)
+      local pending = handle and classicapi_plate_units[handle]
+      if pending then
+        BindClassicAPIPlateUnit(parent, pending.unit, pending.guid)
+      end
+    end
+
     HookScript(parent, "OnShow", nameplates.OnShow)
     HookScript(parent, "OnUpdate", nameplates.OnUpdate)
 
@@ -1217,11 +1290,12 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
           channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(plate.parent:GetName(1))
         end
 
-      -- Vanilla libcast is keyed only by unit name. It is safe enough for a
-      -- unique visible name, but using it with duplicate visible names creates
-      -- a false castbar on every matching plate. Hide ambiguous legacy state
-      -- instead of displaying a known-wrong cast.
-      elseif not HasDuplicateVisibleName(name, plate) then
+      -- If exact ClassicAPI identity cannot be resolved for a frame, retain
+      -- pfUI's original name-keyed libcast behavior. This deliberately fails
+      -- open for display: a temporary identity-provider miss must never remove
+      -- cast bars that stock pfUI would have shown. Once exact identity binds,
+      -- that plate stays on the per-unit C_Spell path above.
+      else
         cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(target and "target" or name)
         if not cast then
           channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(target and "target" or name)

@@ -15,7 +15,11 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
   - `C_Spell.UnitCastingInfo` and `C_Spell.UnitChannelInfo` are queried for that exact unit instead of using the creature name as the cast-state key.
   - Identically named enemies no longer inherit another matching enemy's cast bar when exact ClassicAPI identity is available.
 - Preserved pfUI's existing SuperWoW GUID cast path as a separate exact-identity provider.
-- Hardened the legacy Vanilla combat-log fallback. If multiple visible nameplates share the same name and no exact provider can resolve the plate, pfUI now suppresses the ambiguous name-keyed cast instead of displaying the same cast on every matching plate.
+- Corrected the initial ClassicAPI nameplate association after live testing showed cast bars disappearing.
+  - ClassicAPI can expose fresh Lua wrappers for the same default engine nameplate; pfUI now compares the underlying native frame handle instead of relying only on Lua wrapper equality.
+  - `NAME_PLATE_UNIT_ADDED` mappings are cached by native frame handle so an event that arrives before pfUI decorates the plate is retained and bound when the overlay is created.
+  - Cached unit tokens/GUIDs are revalidated against the native frame before use and cleared on removal/recycling.
+- Restored pfUI's original name-keyed cast fallback whenever exact ClassicAPI identity cannot be resolved. A transient exact-provider miss must not remove cast bars that stock pfUI would otherwise display.
 - Corrected the SuperWoW cast lookup in the touched nameplate code path to reference the current `plate` object explicitly.
 
 #### Compatibility
@@ -26,11 +30,12 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
 - No SavedVariables/schema changes.
 - No public pfUI module/API contract changes.
 - The fix is isolated to `modules/nameplates.lua`; pfExtend, pfQuest, pfQuest-turtle, and pfUI-LocationPlus integration surfaces are unchanged.
-- ClassicAPI support is optional and feature-detected. Stock 1.12.1 clients continue to use pfUI's legacy behavior, with the new duplicate-name safety guard.
+- ClassicAPI support is optional and feature-detected. Stock 1.12.1 clients continue to use pfUI's original legacy cast behavior.
 
 #### Live validation status
 
 - Static/source review: completed.
 - Mocked identity-selection validation: completed.
-- Live 1.12.1 client validation: **pending**.
+- First live 1.12.1 test of the initial implementation: **failed** (nameplate cast bars were suppressed).
+- Corrected native-frame identity build: **pending live validation**.
 
