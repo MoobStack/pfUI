@@ -52,15 +52,27 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
     and true or nil
 
   -- ClassicAPI may return a fresh Lua wrapper for a default engine nameplate.
-  -- Such wrappers are not Lua-equal even when their [0] native frame handle is
-  -- identical. Compare the native handle as a fallback and keep event mappings
-  -- by that handle so NAME_PLATE_UNIT_ADDED can safely fire before pfUI decorates
-  -- the underlying nameplate.
+  -- Such wrappers are not Lua-equal even when they address the same underlying
+  -- plate. pfUI's overlay frame is a Lua-registered child of that native plate,
+  -- however, so it gives us an authoritative cross-wrapper identity marker once
+  -- the plate has been decorated. Keep the native handle comparison as a cheap
+  -- fast path, but never depend on it as the only correlation method.
   local classicapi_plate_units = {}
 
   local function GetClassicAPIFrameHandle(frame)
     if type(frame) == "table" then
       return rawget(frame, 0)
+    end
+  end
+
+  local function FrameContainsChild(frame, child)
+    if not frame or not child or not frame.GetChildren then return nil end
+
+    local children = { frame:GetChildren() }
+    for i = 1, table.getn(children) do
+      if children[i] == child then
+        return true
+      end
     end
   end
 
@@ -70,7 +82,21 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
 
     local left_handle = GetClassicAPIFrameHandle(left)
     local right_handle = GetClassicAPIFrameHandle(right)
-    return left_handle and right_handle and left_handle == right_handle or nil
+    if left_handle and right_handle and left_handle == right_handle then
+      return true
+    end
+
+    -- Default nameplate wrappers can differ, but the pfUI overlay created below
+    -- is registered with Lua and remains the same child object from either
+    -- wrapper. This is considerably safer than matching by unit name/health or
+    -- approximate screen coordinates.
+    if right.nameplate and FrameContainsChild(left, right.nameplate) then
+      return true
+    end
+
+    if left.nameplate and FrameContainsChild(right, left.nameplate) then
+      return true
+    end
   end
 
   local function FindClassicAPIParent(api_parent)
@@ -199,6 +225,26 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
       end
     end
 
+    -- If the event arrived before pfUI decorated the engine plate (or event
+    -- registration was unavailable), recover on demand from ClassicAPI's
+    -- contiguous nameplateN token list. GetNamePlateForUnit() can return a fresh
+    -- wrapper, but SameClassicAPIFrame() identifies the matching native parent by
+    -- the registered pfUI overlay child and then caches the exact token/GUID.
+    for i = 1, 80 do
+      local plateunit = "nameplate" .. i
+      if not UnitExists(plateunit) then break end
+
+      api_parent = api.GetNamePlateForUnit(plateunit)
+      if SameClassicAPIFrame(api_parent, parent) then
+        local plateguid = _G.UnitGUID(plateunit)
+        if handle then
+          classicapi_plate_units[handle] = { unit = plateunit, guid = plateguid }
+        end
+        BindClassicAPIPlateUnit(parent, plateunit, plateguid)
+        return plateunit
+      end
+    end
+
     -- A cached GUID can recover an exact current token after token recycling.
     local guid = nameplate.classicapi_guid or parent.pfUI_classicapi_guid
     if guid and _G.UnitTokenFromGUID then
@@ -230,6 +276,20 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
             end
           end
         end
+      end
+    end
+  end
+
+  local function IsVisibleNameAmbiguous(name)
+    if not name then return nil end
+
+    local count = 0
+    for parent in pairs(registry) do
+      local nameplate = parent.nameplate
+      if parent:IsShown() and nameplate and nameplate.original and nameplate.original.name
+        and nameplate.original.name:GetText() == name then
+        count = count + 1
+        if count > 1 then return true end
       end
     end
   end
@@ -1290,11 +1350,14 @@ pfUI:RegisterModule("nameplates", "vanilla:tbc", function ()
           channel, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitChannelInfo(plate.parent:GetName(1))
         end
 
-      -- If exact ClassicAPI identity cannot be resolved for a frame, retain
-      -- pfUI's original name-keyed libcast behavior. This deliberately fails
-      -- open for display: a temporary identity-provider miss must never remove
-      -- cast bars that stock pfUI would have shown. Once exact identity binds,
-      -- that plate stays on the per-unit C_Spell path above.
+      -- With an exact ClassicAPI provider present, never use a name-keyed
+      -- fallback for a duplicated visible name. That fallback is the original
+      -- source of cast leakage across same-name mobs. Unique names remain safe
+      -- to use with libcast if exact binding is temporarily unavailable.
+      elseif classicapi_casts and IsVisibleNameAmbiguous(name) then
+        cast = nil
+        channel = nil
+
       else
         cast, nameSubtext, text, texture, startTime, endTime, isTradeSkill = UnitCastingInfo(target and "target" or name)
         if not cast then

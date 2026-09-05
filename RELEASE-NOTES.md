@@ -2,9 +2,10 @@
 
 **Status:** Unreleased development build  
 **Version:** 5.5.4 (intentionally unchanged)  
+**Development build:** `2026-09-04-nameplate-castfix3`
 **Base upstream commit:** `b2f6df84`  
 **Target:** World of Warcraft 1.12.1 / Interface 11200  
-**Live-client validation:** Initial build failed; corrected build pending
+**Live-client validation:** Two development builds tested; registered-child identity correction pending
 
 ## Development policy
 
@@ -40,17 +41,19 @@ When ClassicAPI's optional nameplate and spell APIs are available, pfUI now:
 3. Revalidates cached tokens before use so recycled nameplate slots cannot be mistaken for a previous unit.
 4. Queries `C_Spell.UnitCastingInfo(unit)` and `C_Spell.UnitChannelInfo(unit)` for the exact plate identity.
 5. Keeps the existing SuperWoW GUID path intact when SuperWoW is the available exact provider.
-6. Compares ClassicAPI nameplate frames by their underlying native frame handle when Lua wrapper identity is not stable.
-7. Caches `NAME_PLATE_UNIT_ADDED` mappings by that native handle so early events can be bound after pfUI creates its overlay.
-8. Falls back to pfUI's original name-keyed cast estimator whenever exact frame identity cannot be resolved.
+6. Uses pfUI's Lua-registered overlay child as the authoritative identity marker when ClassicAPI returns a fresh wrapper for a default engine nameplate.
+7. Performs a bounded on-demand `nameplate1`..`nameplateN` scan if an event mapping arrived before pfUI decorated the frame, then caches the exact token/GUID after the registered child matches.
+8. Uses the original name-keyed cast estimator only when the visible name is unique (or when ClassicAPI exact casting is unavailable). A duplicated visible name never falls back to shared name-keyed cast state while the exact provider exists.
 
-The fallback is intentionally display-safe: a temporary ClassicAPI association miss can re-expose stock pfUI's duplicate-name limitation, but it must never make all cast bars disappear. Once a plate has exact identity, its cast state comes only from that exact unit.
+Once a plate has exact identity, its cast state comes only from that exact unit. If exact binding is temporarily unavailable, unique names may still use stock pfUI's estimator without ambiguity; duplicate names are held back from the estimator specifically to prevent cross-plate leakage.
 
 ### Live-test correction
 
 The first development build compared the `Frame` object returned by `C_NamePlate.GetNamePlateForUnit()` directly with pfUI's previously discovered parent frame. Live testing showed no cast bars. ClassicAPI documents that default engine nameplates can be surfaced through fresh Lua wrapper objects, so two wrappers can represent the same native frame without being Lua-equal.
 
-The corrected build therefore compares the wrapper's native frame handle (`frame[0]`) when direct equality fails and preserves the original cast fallback if exact binding is temporarily unavailable.
+The second development build added native-handle comparison and restored pfUI's name-keyed fallback when exact binding missed. Live testing restored cast bars, but the fallback also restored the original bug: every visible same-name mob displayed the shared cast.
+
+The current correction no longer depends on parent-wrapper identity alone. pfUI's overlay is a Lua-registered child of the native plate; the fresh ClassicAPI wrapper exposes that same registered child through `GetChildren()`, giving an exact cross-wrapper correlation. An unresolved decorated plate can therefore enumerate the live `nameplateN` tokens, identify its own exact token through the registered child, and use `C_Spell` for that unit. Duplicate visible names are not permitted to use the shared name-keyed fallback while ClassicAPI exact casting is present.
 
 ### Why this approach
 
