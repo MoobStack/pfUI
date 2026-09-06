@@ -1,13 +1,13 @@
-# MoobStack pfUI Development Release Notes
+# MoobStack pfUI v5.5.5.1 Release Notes
 
-**Status:** Unreleased development
-**Base public version:** 5.5.5
-**Development date:** 2026-09-05
+**Status:** Published release
+**Version:** 5.5.5.1
+**Release date:** 2026-09-05
 **Target:** World of Warcraft 1.12.1 / Interface 11200
 **ClassicAPI:** Required for the supported MoobStack compatibility configuration
-**Live-client validation:** Pending
+**Live-client validation:** Passed
 
-## Current development changes
+## Fixed
 
 ### libpredict / ClassicAPI spellcast event compatibility
 
@@ -19,7 +19,7 @@ ERROR: Interface\AddOns\pfUI\libs\libpredict.lua:516: attempt to perform arithme
 
 The error predates the MoobStack nameplate modifications. Upstream pfUI registers both Vanilla `SPELLCAST_*` events and TBC-style `UNIT_SPELLCAST_*` events. On an unmodified 1.12.1 client the TBC event family never fires, so this is normally harmless. ClassicAPI backports `UNIT_SPELLCAST_*` to 1.12.1, which exposes the latent assumption: `libpredict` interprets the event as TBC and immediately subtracts `endtime - starttime` from its legacy Vanilla cast tracker even when those values are not populated yet.
 
-The development fix now:
+The released fix now:
 
 - registers Vanilla `SPELLCAST_*` events only on the 1.12.1 client;
 - registers TBC `UNIT_SPELLCAST_*` events only on the TBC client;
@@ -36,9 +36,8 @@ https://github.com/brues-code/ClassicAPI/releases
 
 SuperCleveRoidMacros is not required by pfUI and does not replace ClassicAPI.
 
-## Live-test focus
+## Live validation
 
-1. Cast several normal cast-time healing spells and confirm no `libpredict.lua` error appears.
-2. Interrupt/cancel casts and confirm incoming-heal prediction clears normally.
-3. Test mouseover/click-cast healing if used.
-4. Confirm the previously fixed identical-name nameplate cast bars still behave correctly.
+The `libpredict` correction was tested live on the World of Warcraft 1.12.1 / OctoWoW target environment with ClassicAPI installed. The previously intermittent `endtime` nil arithmetic error no longer reproduced during normal play.
+
+The exact same-name nameplate cast isolation from v5.5.5 remains included and unchanged in this release; that implementation had already passed live validation before publication.

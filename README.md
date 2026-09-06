@@ -10,7 +10,7 @@ This is **not** an addon-pack like [ShaguUI](http://shagu.org/ShaguUI/), however
 
 This repository is a compatibility-focused maintenance fork of [Shagu's pfUI](https://github.com/shagu/pfUI) for World of Warcraft 1.12.1 community-client environments. The addon remains `pfUI` internally and on disk so external pfUI modules and companion addons continue to see the interfaces they expect.
 
-Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). Current development release notes are kept separately in [RELEASE-NOTES.md](RELEASE-NOTES.md), while published v5.5.5 notes remain in [RELEASE-NOTES-v5.5.5.md](RELEASE-NOTES-v5.5.5.md). During each development cycle the current public version is retained until live validation is complete, then the finalized release receives a new version and tag.
+Development changes are tracked in [CHANGELOG.md](CHANGELOG.md). Published release details are kept in versioned release-note files, with the current release documented in [RELEASE-NOTES-v5.5.5.1.md](RELEASE-NOTES-v5.5.5.1.md) and the previous v5.5.5 notes retained in [RELEASE-NOTES-v5.5.5.md](RELEASE-NOTES-v5.5.5.md). During each development cycle the current public version is retained until live validation is complete, then the finalized release receives a new version and tag.
 
 ### Required Compatibility Component
 

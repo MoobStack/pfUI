@@ -4,7 +4,7 @@ This is the living development changelog for the MoobStack maintenance fork of p
 
 The runtime addon identity remains `pfUI` for compatibility with pfUI modules and companion addons. Development changes are accumulated here and finalized into numbered releases only after live validation.
 
-## Unreleased development (5.5.5 base)
+## 5.5.5.1 - 2026-09-05
 
 ### 2026-09-05
 
@@ -24,7 +24,7 @@ The runtime addon identity remains `pfUI` for compatibility with pfUI modules an
 #### Live validation status
 
 - Static/source validation: completed.
-- Live 1.12.1 validation of the `libpredict` correction: pending.
+- Live 1.12.1 validation of the `libpredict` correction: **passed**. The previously intermittent `endtime` nil arithmetic error no longer reproduced during normal play.
 
 ## 5.5.5 - 2026-09-04
 
